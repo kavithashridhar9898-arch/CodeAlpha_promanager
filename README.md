@@ -105,29 +105,3 @@ npm run dev               # Start dev server with nodemon on port 5000
 npm run build             # Compile TypeScript to dist/
 npm run start             # Run compiled server
 ```
-
-### Environment Variables
-
-**Frontend** (`.env`):
-```env
-VITE_API_BASE_URL=http://localhost:5000/api
-VITE_APP_NAME=ProManager
-```
-
-**Backend** (`.env`):
-```env
-NODE_ENV=development
-PORT=5000
-DATABASE_URL="mysql://root:password@localhost:3306/promanager"
-JWT_SECRET=your_jwt_secret_key_here
-CLIENT_URL=http://localhost:3000
-```
-
----
-
-## Development Notes
-
-- Frontend dev server runs on **port 3000** and proxies `/api` requests to the backend.
-- Backend runs on **port 5000**.
-- Prisma v7 uses an adapter-based architecture — wire a MySQL adapter when implementing database access.
-- Socket.IO is installed and ready to be implemented for real-time features.
