@@ -1,4 +1,4 @@
-# ProManager
+# ProManager (Internship)
 
 A production-ready collaborative project management application.
 
