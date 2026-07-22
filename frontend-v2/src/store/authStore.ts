@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import axios from 'axios';
+import { api } from '@/lib/axios';
 
 interface User {
   id: string;
@@ -7,6 +8,15 @@ interface User {
   email: string;
   role: string;
   avatarUrl?: string;
+  username?: string;
+  phone?: string;
+  jobTitle?: string;
+  bio?: string;
+  timezone?: string;
+  language?: string;
+  theme?: string;
+  dateFormat?: string;
+  timeFormat?: string;
   notificationSettings?: {
     taskAssignments?: boolean;
     mentions?: boolean;
@@ -21,6 +31,7 @@ interface AuthState {
   isLoading: boolean;
   error: string | null;
   login: (email: string, password: string) => Promise<void>;
+  demoLogin: () => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   updateMe: (data: Partial<User>) => Promise<void>;
   logout: () => void;
@@ -37,12 +48,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   login: async (email, password) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await axios.post('/api/auth/login', { email, password });
+      const response = await api.post('/auth/login', { email, password });
       const { user, accessToken: token } = response.data.data;
       
       // Store in local storage for persistence
       localStorage.setItem('token', token);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
       set({ user, token, isAuthenticated: true, isLoading: false });
     } catch (error: any) {
@@ -54,14 +64,31 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  register: async (name, email, password) => {
+  demoLogin: async () => {
     set({ isLoading: true, error: null });
     try {
-      const response = await axios.post('/api/auth/register', { name, email, password });
+      const response = await api.post('/auth/demo/login');
       const { user, accessToken: token } = response.data.data;
       
       localStorage.setItem('token', token);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
+      set({ user, token, isAuthenticated: true, isLoading: false });
+    } catch (error: any) {
+      set({ 
+        error: error.response?.data?.message || 'Demo login failed.',
+        isLoading: false 
+      });
+      throw error;
+    }
+  },
+
+  register: async (name, email, password) => {
+    set({ isLoading: true, error: null });
+    try {
+      const response = await api.post('/auth/register', { name, email, password });
+      const { user, accessToken: token } = response.data.data;
+      
+      localStorage.setItem('token', token);
 
       set({ user, token, isAuthenticated: true, isLoading: false });
     } catch (error: any) {
@@ -92,7 +119,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   logout: () => {
     localStorage.removeItem('token');
-    delete axios.defaults.headers.common['Authorization'];
+    api.post('/auth/logout').catch(() => {});
     set({ user: null, token: null, isAuthenticated: false });
     window.location.href = '/login';
   },
@@ -101,14 +128,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const token = localStorage.getItem('token');
     if (!token) return;
 
+    // Set token in state so the API interceptor can attach it to the request header
+    set({ token });
+
     try {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      const response = await axios.get('/api/auth/me');
-      set({ user: response.data.data, token, isAuthenticated: true });
-    } catch (error) {
-      localStorage.removeItem('token');
-      delete axios.defaults.headers.common['Authorization'];
-      set({ user: null, token: null, isAuthenticated: false });
+      // Intentionally use `api` so that the token refresh interceptor triggers on 401
+      const response = await api.get('/auth/me');
+      // The interceptor might have updated the token in localStorage, so we fetch it again
+      const currentToken = localStorage.getItem('token') || token;
+      set({ user: response.data.data, token: currentToken, isAuthenticated: true });
+    } catch (error: any) {
+      if (error.response?.status === 401) {
+        localStorage.removeItem('token');
+        set({ user: null, token: null, isAuthenticated: false });
+      }
     }
   }
 }));

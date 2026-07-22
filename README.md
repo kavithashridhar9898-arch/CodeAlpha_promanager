@@ -1,107 +1,113 @@
-# ProManager (Internship)
+<div align="center">
+  <img src="docs/assets/logo.png" alt="ProManager Logo" width="120" />
+  
+  # ProManager 🚀
+  
+  **The Enterprise-Grade Collaborative Project Management Platform**
+  
+  [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+  [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev)
+  [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](https://nextjs.org/)
+  [![Node.js](https://img.shields.io/badge/Node.js-Express-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+  [![Prisma](https://img.shields.io/badge/Prisma-7-2D3748?logo=prisma&logoColor=white)](https://www.prisma.io/)
+  [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
 
-A production-ready collaborative project management application.
+  [View Live Demo](#demo) • [Read Architecture](docs/Architecture.md) • [Report Bug](.github/ISSUE_TEMPLATE/bug_report.md) • [Request Feature](.github/ISSUE_TEMPLATE/feature_request.md)
+</div>
 
-## Tech Stack
+<br />
 
-### Frontend (`/frontend`)
-| Technology | Purpose |
-|---|---|
-| React 19 + Vite | UI Framework & Build Tool |
-| TypeScript 6 | Type Safety |
-| Tailwind CSS v4 | Styling |
-| shadcn/ui | UI Component Library |
-| React Router v7 | Client-side Routing |
-| Axios | HTTP Client |
-| Zustand | Global State Management |
-| TanStack Query v5 | Server State & Data Fetching |
-| React Hook Form + Zod | Forms & Validation |
+ProManager is a modern, fast, and feature-rich open-source project management application designed for agile teams. Built from the ground up for scale, it integrates real-time collaboration, an embedded AI Assistant, interactive Gantt charts, and advanced resource management.
 
-### Backend (`/backend`)
-| Technology | Purpose |
-|---|---|
-| Node.js + Express v5 | Web Framework |
-| TypeScript 6 | Type Safety |
-| Prisma v7 | ORM |
-| MySQL | Database |
-| Socket.IO v4 | Real-time (installed, not implemented) |
-| Helmet, CORS | Security Middleware |
+![ProManager Dashboard Preview](docs/assets/screenshots/dashboard.png)
 
 ---
 
-## Project Structure
+## ✨ Features
 
-```
-promanager/
-├── frontend/
-│   ├── public/
-│   ├── src/
-│   │   ├── components/      # Reusable UI components
-│   │   ├── hooks/           # Custom React hooks
-│   │   ├── layouts/         # Page layout wrappers
-│   │   ├── lib/
-│   │   │   └── utils.ts     # shadcn/ui cn() utility
-│   │   ├── pages/           # Route-level page components
-│   │   ├── routes/          # React Router route definitions
-│   │   ├── services/        # Axios HTTP client & API services
-│   │   ├── store/           # Zustand global state stores
-│   │   ├── types/           # Shared TypeScript types
-│   │   ├── utils/           # General utility functions
-│   │   ├── App.tsx          # Root component
-│   │   └── index.css        # Global styles (Tailwind v4)
-│   ├── .env                 # Frontend environment variables
-│   ├── vite.config.ts       # Vite config with path aliases & proxy
-│   └── tsconfig.app.json    # TypeScript config
-│
-├── backend/
-│   ├── prisma/
-│   │   └── schema.prisma    # Prisma database schema (MySQL)
-│   ├── src/
-│   │   ├── config/          # Database client, env config
-│   │   ├── controllers/     # Route controller functions
-│   │   ├── generated/       # Prisma generated client (auto-generated)
-│   │   ├── middleware/       # Express middleware (error, 404, auth)
-│   │   ├── routes/          # Express route definitions
-│   │   ├── services/        # Business logic services
-│   │   ├── types/           # Shared TypeScript types
-│   │   ├── utils/           # Utility functions
-│   │   ├── app.ts           # Express app setup
-│   │   └── index.ts         # Server entry point
-│   ├── .env                 # Backend environment variables
-│   ├── nodemon.json         # Nodemon dev server config
-│   ├── prisma.config.ts     # Prisma v7 configuration
-│   └── tsconfig.json        # TypeScript config
-└── README.md
-```
+- **Interactive Kanban Boards:** Drag-and-drop task management with customizable columns and real-time Socket.IO updates.
+- **Gantt Charts & Timelines:** Visualize project dependencies, critical paths, and project durations.
+- **Embedded AI Assistant (ProAI):** Generate task summaries, analyze project risks, and automatically route issues.
+- **Time Tracking & Timesheets:** Track billable hours and view resource allocation heatmaps.
+- **Advanced Resource Management:** Prevent team burnout with visual capacity planning.
+- **GitHub Integration:** Automatically link PRs and commits to tasks via Webhooks.
+- **Enterprise Security:** XSS sanitization, Helmet headers, robust Rate Limiting, and unified Winston logging.
 
 ---
 
-## Getting Started
+## 🛠️ Tech Stack
+
+### Frontend
+- **Framework:** Next.js 15 (App Router) & React 19
+- **Styling:** Tailwind CSS v4 & `shadcn/ui`
+- **State Management:** Zustand (Global) & TanStack Query v5 (Server State)
+- **Animation:** Framer Motion
+- **Forms:** React Hook Form + Zod validation
+
+### Backend
+- **Core:** Node.js + Express v5
+- **Language:** TypeScript
+- **Database:** PostgreSQL / MySQL (via Prisma ORM)
+- **Real-time:** Socket.IO v4
+- **Security:** Helmet, `xss` Middleware, `express-rate-limit`
+- **Logging:** Winston + Morgan
+
+---
+
+## 🚀 Quick Start (Demo Mode)
+
+Want to see it in action without configuring a database?
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/promanager/promanager.git
+   cd promanager
+   ```
+2. Start the stack via Docker:
+   ```bash
+   docker-compose up -d
+   ```
+3. Open `http://localhost:3000` and click **"Try Demo Workspace"** on the login page!
+
+---
+
+## 💻 Manual Development Setup
 
 ### Prerequisites
 - Node.js >= 20
-- MySQL running locally
+- MySQL or PostgreSQL database
 
-### Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev          # Start dev server on http://localhost:3000
-npm run build        # Production build
-npm run lint         # ESLint check
-npm run format       # Prettier format
-```
-
-### Backend
-
+### 1. Backend Setup
 ```bash
 cd backend
 npm install
-# Configure .env with your MySQL credentials
-npm run prisma:generate   # Generate Prisma client
-npm run prisma:migrate    # Run database migrations
-npm run dev               # Start dev server with nodemon on port 5000
-npm run build             # Compile TypeScript to dist/
-npm run start             # Run compiled server
+cp .env.example .env     # Update with your DB credentials
+npm run prisma:generate
+npm run prisma:migrate
+npm run seed             # (Optional) Load sample data
+npm run dev
 ```
+### 2. Frontend Setup
+```bash
+cd frontend-v2
+npm install --legacy-peer-deps
+cp .env.example .env.local
+npm run dev
+```
+The app will be running at `http://localhost:3000`.
+
+---
+
+## 🏗️ Architecture
+
+Read the full [Architecture & System Design Documentation](docs/Architecture.md) to explore the system's database schema, authentication flow, and real-time infrastructure.
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions from the community! Please read our [Contributing Guidelines](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md) before submitting pull requests.
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

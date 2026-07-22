@@ -2,23 +2,40 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { KanbanBoard, Task } from '@/components/board/KanbanBoard';
+import dynamic from 'next/dynamic';
+import { Task } from '@/components/board/KanbanBoard';
 import { TaskDrawer } from '@/components/board/TaskDrawer';
 import { ActivityTimeline } from '@/components/activities/ActivityTimeline';
-import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, LayoutDashboard, Settings, Users, Activity, Shield, UserPlus, Trash2, Archive, Loader2, XCircle } from 'lucide-react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { ArrowLeft, LayoutDashboard, Settings, Users, Activity, Shield, UserPlus, Trash2, Archive, Loader2, XCircle, Download, GitBranch } from 'lucide-react';
 import { useProject, useArchiveProject, useRemoveMember } from '@/hooks/useProjects';
 import { useAuthStore } from '@/store/authStore';
 import { EditProjectDialog } from '@/components/projects/EditProjectDialog';
 import { DeleteConfirmationDialog } from '@/components/projects/DeleteConfirmationDialog';
 import { InviteMemberDialog } from '@/components/projects/InviteMemberDialog';
+import { ProjectIntegrationsTab } from '@/components/projects/ProjectIntegrationsTab';
+import { useBoard } from '@/hooks/useBoard';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/axios';
+
+const KanbanBoard = dynamic(() => import('@/components/board/KanbanBoard').then(mod => mod.KanbanBoard), { 
+  loading: () => <div className="h-full flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>,
+  ssr: false 
+});
+
+const GanttChart = dynamic(() => import('@/components/board/GanttChart').then(mod => mod.GanttChart), { 
+  loading: () => <div className="h-full flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>,
+  ssr: false 
+});
 
 export default function ProjectDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlTaskId = searchParams.get('taskId');
   const projectId = params.id as string;
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'board' | 'activity'>('board');
+  const [activeTab, setActiveTab] = useState<'overview' | 'board' | 'activity' | 'gantt' | 'integrations'>('board');
   
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -27,8 +44,26 @@ export default function ProjectDetailPage() {
   const currentUser = useAuthStore((s) => s.user);
   
   const { data: project, isLoading, error } = useProject(projectId);
+  const { data: board } = useBoard(projectId);
+  const allTasks = board?.columns.flatMap((c) => c.tasks) || [];
   const { mutateAsync: archiveProject, isPending: isArchiving } = useArchiveProject();
   const { mutateAsync: removeMember } = useRemoveMember();
+
+  const { data: urlTask } = useQuery({
+    queryKey: ['task', urlTaskId],
+    queryFn: async () => {
+      const { data } = await api.get(`/tasks/${urlTaskId}`);
+      return data.data as Task;
+    },
+    enabled: !!urlTaskId,
+  });
+
+  React.useEffect(() => {
+    if (urlTask && !selectedTask) {
+      setSelectedTask(urlTask);
+      router.replace(`/dashboard/projects/${projectId}`, undefined);
+    }
+  }, [urlTask, projectId, router, selectedTask]);
 
   if (isLoading) {
     return (
@@ -58,6 +93,25 @@ export default function ProjectDetailPage() {
   const handleArchive = async () => {
     if (confirm('Are you sure you want to archive this project?')) {
       await archiveProject(project.id);
+    }
+  };
+
+  const handleExport = async (format: 'csv' | 'json') => {
+    try {
+      const response = await api.get(`/projects/${project.id}/export/${format}`, {
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${project.name.replace(/\s+/g, '_')}_export.${format}`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Failed to export project data');
     }
   };
 
@@ -97,6 +151,26 @@ export default function ProjectDetailPage() {
           
           {isAdmin && (
             <div className="flex flex-wrap items-center gap-3">
+              {/* Export dropdown */}
+              <div className="relative group">
+                <button className="flex items-center gap-2 bg-secondary hover:bg-secondary/80 text-foreground px-4 py-2 rounded-xl transition-colors font-medium border border-border">
+                  <Download className="w-4 h-4" /> Export
+                </button>
+                <div className="absolute right-0 top-full mt-1 w-40 bg-card border border-border rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-20 overflow-hidden">
+                  <button
+                    onClick={() => handleExport('csv')}
+                    className="w-full px-4 py-2.5 text-sm text-left hover:bg-secondary font-medium transition-colors"
+                  >
+                    Export as CSV
+                  </button>
+                  <button
+                    onClick={() => handleExport('json')}
+                    className="w-full px-4 py-2.5 text-sm text-left hover:bg-secondary font-medium transition-colors border-t border-border"
+                  >
+                    Export as JSON
+                  </button>
+                </div>
+              </div>
               <button 
                 onClick={() => setIsEditOpen(true)}
                 className="flex items-center gap-2 bg-secondary hover:bg-secondary/80 text-foreground px-4 py-2 rounded-xl transition-colors font-medium border border-border"
@@ -124,11 +198,14 @@ export default function ProjectDetailPage() {
           )}
         </div>
 
+
       <div className="flex border-b border-border mb-6">
         {[
           { id: 'board', label: 'Kanban Board', icon: LayoutDashboard },
+          { id: 'gantt', label: 'Gantt Timeline', icon: Activity },
           { id: 'overview', label: 'Overview', icon: Users },
           { id: 'activity', label: 'Activity', icon: Activity },
+          { id: 'integrations', label: 'Integrations', icon: GitBranch },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -156,6 +233,16 @@ export default function ProjectDetailPage() {
               <KanbanBoard projectId={projectId} onTaskClick={(task) => setSelectedTask(task)} />
             </motion.div>
           )}
+
+          {activeTab === 'gantt' && (
+            <motion.div
+              key="gantt"
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+              className="h-full overflow-auto pb-4"
+            >
+              <GanttChart tasks={allTasks} />
+            </motion.div>
+          )}
           
           {activeTab === 'overview' && (
             <motion.div 
@@ -181,7 +268,7 @@ export default function ProjectDetailPage() {
                   <div key={member.id} className="flex items-center justify-between p-4 bg-secondary/30 border border-border rounded-2xl">
                     <div className="flex items-center gap-4">
                       {member.user.avatarUrl ? (
-                         <img src={member.user.avatarUrl} alt={member.user.name} className="w-10 h-10 rounded-full" />
+                         <img src={member.user.avatarUrl.startsWith('http') ? member.user.avatarUrl : `http://localhost:5000${member.user.avatarUrl}`} alt={member.user.name} className="w-10 h-10 rounded-full object-cover" />
                       ) : (
                          <div className="w-10 h-10 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold">
                            {member.user.name.charAt(0).toUpperCase()}
@@ -231,6 +318,16 @@ export default function ProjectDetailPage() {
               <div className="flex-1 overflow-hidden">
                 <ActivityTimeline projectId={projectId} />
               </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'integrations' && (
+            <motion.div 
+              key="integrations"
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+              className="h-full overflow-auto pb-4"
+            >
+              <ProjectIntegrationsTab projectId={projectId} />
             </motion.div>
           )}
         </AnimatePresence>

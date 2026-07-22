@@ -39,7 +39,7 @@ export function FeaturesSection() {
 
   return (
     <section ref={containerRef} className="relative py-32 overflow-hidden bg-background">
-      <div className="absolute inset-0 bg-[url('/noise.png')] opacity-[0.03] pointer-events-none mix-blend-overlay" />
+      <div className="absolute inset-0 bg-gradient-to-b from-background via-background/95 to-secondary/20 pointer-events-none" />
       
       <motion.div style={{ opacity }} className="container mx-auto px-6">
         <div className="text-center max-w-3xl mx-auto mb-20">

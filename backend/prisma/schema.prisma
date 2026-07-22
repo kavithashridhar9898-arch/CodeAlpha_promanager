@@ -8,7 +8,7 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -26,6 +26,20 @@ enum MemberRole {
   OWNER
   ADMIN
   MEMBER
+}
+
+enum TeamRole {
+  OWNER
+  ADMIN
+  MANAGER
+  MEMBER
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
 }
 
 enum TaskStatus {
@@ -73,7 +87,15 @@ model User {
   password      String
   role          Role      @default(MEMBER)
   avatarUrl            String?
+  username             String?   @unique
+  phone                String?
+  jobTitle             String?
+  bio                  String?   @db.Text
   notificationSettings Json?
+  timezone             String    @default("UTC")
+  language             String    @default("en")
+  theme                String    @default("system")
+  dateFormat           String    @default("MM/DD/YYYY")
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
   deletedAt            DateTime?
@@ -85,6 +107,15 @@ model User {
   notifications Notification[]
   activityLogs  ActivityLog[]   @relation("LogActor")
   refreshTokens RefreshToken[]
+  teamMemberships TeamMember[]
+  sentInvitations ProjectInvitation[] @relation("Inviter")
+  aiConversations AIConversation[]
+  integrationAccounts IntegrationAccount[]
+  automations         Automation[]
+  timeEntries         TimeEntry[]
+  timesheets          Timesheet[]
+  resourceAllocations ResourceAllocation[]
+  workloadReports     WorkloadReport[]
 
   @@map("users")
 }
@@ -117,8 +148,20 @@ model Project {
   members      ProjectMember[]
   boards       Board[]
   activityLogs ActivityLog[]
+  teamId       String?
+  team         Team?           @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  invitations  ProjectInvitation[]
+  attachments  FileAttachment[]
+  aiConversations AIConversation[]
+  repositories Repository[]
+  deployments Deployment[]
+  automations Automation[]
+  timeEntries         TimeEntry[]
+  resourceAllocations ResourceAllocation[]
+  workloadReports     WorkloadReport[]
 
   @@index([ownerId])
+  @@index([teamId])
   @@map("projects")
 }
 
@@ -187,6 +230,11 @@ model Task {
   comments  Comment[]
   labels    TaskLabel[]
   activityLogs ActivityLog[]
+  checklists Checklist[]
+  attachments FileAttachment[]
+  taskLinks   TaskLink[]
+  timeEntries         TimeEntry[]
+  resourceAllocations ResourceAllocation[]
 
   @@index([columnId])
   @@index([assigneeId])
@@ -274,4 +322,670 @@ model ActivityLog {
   @@index([taskId])
   @@index([userId])
   @@map("activity_logs")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Enterprise Additions
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Team {
+  id          String   @id @default(cuid())
+  name        String
+  description String?  @db.Text
+  avatarUrl   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members     TeamMember[]
+  projects    Project[]
+
+  @@map("teams")
+}
+
+model TeamMember {
+  id        String   @id @default(cuid())
+  role      TeamRole @default(MEMBER)
+  userId    String
+  teamId    String
+  joinedAt  DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, teamId])
+  @@index([teamId])
+  @@map("team_members")
+}
+
+model ProjectInvitation {
+  id          String           @id @default(cuid())
+  email       String
+  projectId   String
+  inviterId   String
+  role        MemberRole       @default(MEMBER)
+  status      InvitationStatus @default(PENDING)
+  token       String           @unique
+  expiresAt   DateTime
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  project     Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  inviter     User             @relation("Inviter", fields: [inviterId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([inviterId])
+  @@map("project_invitations")
+}
+
+model Checklist {
+  id        String   @id @default(cuid())
+  title     String
+  taskId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  task      Task             @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  items     ChecklistItem[]
+
+  @@index([taskId])
+  @@map("checklists")
+}
+
+model ChecklistItem {
+  id          String   @id @default(cuid())
+  content     String
+  isCompleted Boolean  @default(false)
+  checklistId String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  checklist   Checklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+
+  @@index([checklistId])
+  @@map("checklist_items")
+}
+
+model FileAttachment {
+  id          String   @id @default(cuid())
+  filename    String
+  originalName String
+  mimeType    String
+  size        Int
+  url         String
+  taskId      String?
+  projectId   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  task        Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  project     Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([projectId])
+  @@map("file_attachments")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ProAI Memory Models
+// ─────────────────────────────────────────────────────────────────────────────
+
+model AIConversation {
+  id        String   @id @default(cuid())
+  title     String   @default("New Conversation")
+  projectId String?  // Optional: Null = Workspace wide, String = Project specific
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  AIMessage[]
+
+  @@index([projectId])
+  @@index([userId])
+  @@map("ai_conversations")
+}
+
+model AIMessage {
+  id             String         @id @default(cuid())
+  conversationId String
+  role           String         // "user" | "assistant" | "system"
+  content        String         @db.Text
+  createdAt      DateTime       @default(now())
+
+  conversation   AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@map("ai_messages")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Communication Hub Models
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum ConversationType {
+  WORKSPACE   // Global workspace channel
+  TEAM        // Team-specific channel
+  PROJECT     // Project-specific channel
+  DIRECT      // 1-to-1 DM
+  GROUP       // Named group chat
+}
+
+enum MessageType {
+  TEXT
+  FILE
+  IMAGE
+  VOICE
+  SYSTEM
+  MEETING
+}
+
+model ChatConversation {
+  id          String           @id @default(cuid())
+  type        ConversationType
+  name        String?          // For TEAM/PROJECT/GROUP
+  description String?          @db.Text
+  avatarUrl   String?
+  teamId      String?
+  projectId   String?
+  createdById String
+  isArchived  Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  members     ConversationMember[]
+  messages    ChatMessage[]
+  pinnedMessages PinnedMessage[]
+
+  @@index([teamId])
+  @@index([projectId])
+  @@index([createdById])
+  @@map("chat_conversations")
+}
+
+model ConversationMember {
+  id             String   @id @default(cuid())
+  conversationId String
+  userId         String
+  unreadCount    Int      @default(0)
+  lastReadAt     DateTime @default(now())
+  joinedAt       DateTime @default(now())
+
+  conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+  @@map("conversation_members")
+}
+
+model ChatMessage {
+  id             String      @id @default(cuid())
+  conversationId String
+  senderId       String
+  type           MessageType @default(TEXT)
+  content        String?     @db.Text
+  replyToId      String?     // Thread reply support
+  isEdited       Boolean     @default(false)
+  isDeleted      Boolean     @default(false)
+  mentionedUsers Json?       // Array of user IDs
+  metadata       Json?       // Extra data (file info, meeting link, etc.)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  conversation   ChatConversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  reactions      MessageReaction[]
+  attachments    MessageAttachment[]
+  pinnedAs       PinnedMessage?
+
+  @@index([conversationId])
+  @@index([senderId])
+  @@index([replyToId])
+  @@map("chat_messages")
+}
+
+model MessageReaction {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  emoji     String   // e.g., "👍", "❤️"
+  createdAt DateTime @default(now())
+
+  message   ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
+  @@map("message_reactions")
+}
+
+model MessageAttachment {
+  id           String   @id @default(cuid())
+  messageId    String
+  filename     String
+  originalName String
+  mimeType     String
+  size         Int
+  url          String
+  createdAt    DateTime @default(now())
+
+  message      ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@map("message_attachments")
+}
+
+model PinnedMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  messageId      String   @unique
+  pinnedById     String
+  pinnedAt       DateTime @default(now())
+
+  conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  message        ChatMessage      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@map("pinned_messages")
+}
+
+model VoiceMessage {
+  id             String   @id @default(cuid())
+  messageId      String   @unique
+  senderId       String
+  conversationId String
+  url            String
+  duration       Int      // seconds
+  waveformData   Json?    // Array of amplitude samples
+  createdAt      DateTime @default(now())
+
+  @@index([conversationId])
+  @@map("voice_messages")
+}
+
+model Meeting {
+  id          String   @id @default(cuid())
+  title       String
+  description String?  @db.Text
+  hostId      String
+  joinLink    String   @unique
+  startTime   DateTime
+  endTime     DateTime?
+  projectId   String?
+  teamId      String?
+  isInstant   Boolean  @default(false)
+  isActive    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  participants MeetingParticipant[]
+
+  @@index([hostId])
+  @@index([projectId])
+  @@map("meetings")
+}
+
+model MeetingParticipant {
+  id        String   @id @default(cuid())
+  meetingId String
+  userId    String
+  joinedAt  DateTime @default(now())
+  leftAt    DateTime?
+
+  meeting   Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@unique([meetingId, userId])
+  @@index([meetingId])
+  @@map("meeting_participants")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Developer Integrations
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum IntegrationProvider {
+  GITHUB
+  GITLAB
+  BITBUCKET
+  VERCEL
+  NETLIFY
+}
+
+model IntegrationAccount {
+  id           String              @id @default(cuid())
+  provider     IntegrationProvider
+  providerId   String              // e.g., GitHub User ID
+  username     String
+  avatarUrl    String?
+  accessToken  String              @db.Text
+  refreshToken String?             @db.Text
+  expiresAt    DateTime?
+  userId       String
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, userId])
+  @@index([userId])
+  @@map("integration_accounts")
+}
+
+model Repository {
+  id            String              @id @default(cuid())
+  provider      IntegrationProvider
+  providerId    String              // Repository ID from Provider
+  fullName      String              // e.g. "facebook/react"
+  name          String
+  url           String
+  defaultBranch String              @default("main")
+  stars         Int                 @default(0)
+  forks         Int                 @default(0)
+  projectId     String?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  project       Project?            @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  commits       Commit[]
+  pullRequests  PullRequest[]
+  issues        Issue[]
+  metrics       CodeMetric[]
+
+  @@unique([provider, providerId])
+  @@index([projectId])
+  @@map("repositories")
+}
+
+model Commit {
+  id            String     @id @default(cuid())
+  sha           String
+  message       String     @db.Text
+  authorName    String
+  authorEmail   String
+  authorAvatar  String?
+  url           String
+  repositoryId  String
+  timestamp     DateTime
+  createdAt     DateTime   @default(now())
+
+  repository    Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  taskLinks     TaskLink[]
+
+  @@unique([repositoryId, sha])
+  @@index([repositoryId])
+  @@map("commits")
+}
+
+model PullRequest {
+  id            String     @id @default(cuid())
+  prNumber      Int
+  title         String
+  state         String     // OPEN, MERGED, CLOSED
+  authorName    String
+  authorAvatar  String?
+  url           String
+  repositoryId  String
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  repository    Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  taskLinks     TaskLink[]
+
+  @@unique([repositoryId, prNumber])
+  @@index([repositoryId])
+  @@map("pull_requests")
+}
+
+model Issue {
+  id            String     @id @default(cuid())
+  issueNumber   Int
+  title         String
+  state         String     // OPEN, CLOSED
+  authorName    String
+  authorAvatar  String?
+  url           String
+  repositoryId  String
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  repository    Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  taskLinks     TaskLink[]
+
+  @@unique([repositoryId, issueNumber])
+  @@index([repositoryId])
+  @@map("issues")
+}
+
+enum TaskLinkType {
+  COMMIT
+  PULL_REQUEST
+  ISSUE
+}
+
+model TaskLink {
+  id            String       @id @default(cuid())
+  taskId        String
+  linkType      TaskLinkType
+  commitId      String?
+  pullRequestId String?
+  issueId       String?
+  createdAt     DateTime     @default(now())
+
+  task          Task         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  commit        Commit?      @relation(fields: [commitId], references: [id], onDelete: Cascade)
+  pullRequest   PullRequest? @relation(fields: [pullRequestId], references: [id], onDelete: Cascade)
+  issue         Issue?       @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@map("task_links")
+}
+
+model Deployment {
+  id            String              @id @default(cuid())
+  provider      IntegrationProvider
+  environment   String              // PRODUCTION, PREVIEW
+  status        String              // SUCCESS, FAILED, PENDING
+  url           String?
+  logsUrl       String?
+  projectId     String
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  project       Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("deployments")
+}
+
+model CodeMetric {
+  id                   String     @id @default(cuid())
+  repositoryId         String
+  leadTimeMinutes      Int?
+  deployFrequencyPerDay Float?
+  topContributors      Json?
+  calculatedAt         DateTime   @default(now())
+
+  repository           Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+
+  @@index([repositoryId])
+  @@map("code_metrics")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Workflow Automation Models
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Automation {
+  id          String   @id @default(cuid())
+  name        String
+  description String?  @db.Text
+  projectId   String
+  isActive    Boolean  @default(false)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  creator     User     @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  nodes       AutomationNode[]
+  edges       AutomationEdge[]
+  executions  AutomationExecution[]
+
+  @@index([projectId])
+  @@index([createdById])
+  @@map("automations")
+}
+
+model AutomationNode {
+  id           String   @id @default(cuid())
+  automationId String
+  type         String   // "TRIGGER", "CONDITION", "ACTION"
+  subType      String   // e.g., "TASK_CREATED", "STATUS_CHANGE"
+  config       Json     // Node-specific configuration (e.g., condition logic, target action data)
+  positionX    Float    @default(0)
+  positionY    Float    @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  automation   Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  sourceEdges  AutomationEdge[] @relation("SourceNode")
+  targetEdges  AutomationEdge[] @relation("TargetNode")
+
+  @@index([automationId])
+  @@map("automation_nodes")
+}
+
+model AutomationEdge {
+  id           String   @id @default(cuid())
+  automationId String
+  sourceId     String
+  targetId     String
+  sourceHandle String?
+  targetHandle String?
+
+  automation   Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  source       AutomationNode @relation("SourceNode", fields: [sourceId], references: [id], onDelete: Cascade)
+  target       AutomationNode @relation("TargetNode", fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@index([automationId])
+  @@index([sourceId])
+  @@index([targetId])
+  @@map("automation_edges")
+}
+
+model AutomationExecution {
+  id           String   @id @default(cuid())
+  automationId String
+  status       String   // "PENDING", "RUNNING", "COMPLETED", "FAILED"
+  startedAt    DateTime @default(now())
+  completedAt  DateTime?
+  durationMs   Int?
+  triggerData  Json?    // Initial data that triggered this execution
+  
+  automation   Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  logs         AutomationLog[]
+
+  @@index([automationId])
+  @@map("automation_executions")
+}
+
+model AutomationLog {
+  id            String   @id @default(cuid())
+  executionId   String
+  nodeId        String?
+  status        String   // "SUCCESS", "FAILED"
+  message       String?  @db.Text
+  error         String?  @db.Text
+  timestamp     DateTime @default(now())
+  
+  execution     AutomationExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@index([executionId])
+  @@map("automation_logs")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Time Tracking & Resource Management
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum TimesheetStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+model TimeEntry {
+  id          String   @id @default(cuid())
+  userId      String
+  taskId      String?
+  projectId   String
+  startTime   DateTime
+  endTime     DateTime?
+  duration    Int?     // duration in seconds
+  description String?  @db.Text
+  isBillable  Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task        Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([taskId])
+  @@index([projectId])
+  @@map("time_entries")
+}
+
+model Timesheet {
+  id          String          @id @default(cuid())
+  userId      String
+  startDate   DateTime
+  endDate     DateTime
+  status      TimesheetStatus @default(DRAFT)
+  totalHours  Float           @default(0)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("timesheets")
+}
+
+model ResourceAllocation {
+  id             String   @id @default(cuid())
+  userId         String
+  projectId      String
+  taskId         String?
+  date           DateTime
+  allocatedHours Float
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task           Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([taskId])
+  @@map("resource_allocations")
+}
+
+model WorkloadReport {
+  id             String   @id @default(cuid())
+  userId         String
+  projectId      String
+  date           DateTime // weekly/monthly snapshot date
+  totalHours     Float
+  estimatedHours Float
+  variance       Float
+  createdAt      DateTime @default(now())
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([projectId])
+  @@map("workload_reports")
 }

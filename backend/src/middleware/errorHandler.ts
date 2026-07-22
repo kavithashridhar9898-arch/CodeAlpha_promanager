@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { AppError } from '../utils/AppError';
+import { logger } from '../utils/logger';
 
 export function errorHandler(
   err: Error | AppError,
@@ -38,9 +39,7 @@ export function errorHandler(
   }
 
   // Unknown / programming errors — don't leak details in production
-  if (isDev) {
-    console.error('💥 Unhandled Error:', err);
-  }
+  logger.error(`💥 Unhandled Error: ${err.message}`, err);
 
   res.status(500).json({
     success: false,

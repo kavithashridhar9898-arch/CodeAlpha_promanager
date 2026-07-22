@@ -8,17 +8,22 @@ import { useAuthStore } from '@/store/authStore';
 import { useTypingIndicator } from '@/hooks/useTypingIndicator';
 import { motion, AnimatePresence } from 'framer-motion';
 
+import { useProject } from '@/hooks/useProjects';
+
 interface Props {
   taskId: string;
+  projectId: string;
 }
 
-export function CommentSection({ taskId }: Props) {
+export function CommentSection({ taskId, projectId }: Props) {
   const currentUser = useAuthStore((s) => s.user);
   const { data: comments, isLoading, isError } = useComments(taskId);
+  const { data: project } = useProject(projectId);
   const { mutateAsync: createComment, isPending: isSending } = useCreateComment(taskId);
   const { typingUsers, onStartTyping, onStopTyping } = useTypingIndicator(taskId, currentUser?.id ?? '');
 
   const [draft, setDraft] = useState('');
+  const [mentionQuery, setMentionQuery] = useState<{ query: string; index: number } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -26,12 +31,48 @@ export function CommentSection({ taskId }: Props) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [comments?.length]);
 
+  const extractMentionedUserIds = (content: string) => {
+    if (!project) return [];
+    const ids: string[] = [];
+    project.members.forEach((m) => {
+      if (content.includes(`@${m.user.name}`)) {
+        ids.push(m.user.id);
+      }
+    });
+    return ids;
+  };
+
   const handleSend = async () => {
     const trimmed = draft.trim();
     if (!trimmed) return;
     onStopTyping();
-    await createComment({ content: trimmed });
+    const mentionedUserIds = extractMentionedUserIds(trimmed);
+    await createComment({ content: trimmed, mentionedUserIds });
     setDraft('');
+    textareaRef.current?.focus();
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setDraft(e.target.value);
+    onStartTyping();
+
+    const cursor = e.target.selectionStart;
+    const textBeforeCursor = e.target.value.slice(0, cursor);
+    const match = textBeforeCursor.match(/@([a-zA-Z0-9_\s]*)$/);
+    if (match) {
+      setMentionQuery({ query: match[1], index: match.index! });
+    } else {
+      setMentionQuery(null);
+    }
+  };
+
+  const insertMention = (userName: string) => {
+    if (!mentionQuery) return;
+    const before = draft.slice(0, mentionQuery.index);
+    const after = draft.slice(textareaRef.current?.selectionStart || draft.length);
+    const newDraft = `${before}@${userName} ${after}`;
+    setDraft(newDraft);
+    setMentionQuery(null);
     textareaRef.current?.focus();
   };
 
@@ -84,6 +125,7 @@ export function CommentSection({ taskId }: Props) {
               <CommentCard
                 comment={comment}
                 taskId={taskId}
+                projectId={projectId}
                 currentUserId={currentUser?.id ?? ''}
               />
             </motion.div>
@@ -112,7 +154,7 @@ export function CommentSection({ taskId }: Props) {
         {currentUser && (
           <div className="flex-shrink-0 mt-1">
             {currentUser.avatarUrl ? (
-              <img src={currentUser.avatarUrl} alt={currentUser.name} className="w-8 h-8 rounded-full border border-border" />
+              <img src={currentUser.avatarUrl.startsWith('http') ? currentUser.avatarUrl : `http://localhost:5000${currentUser.avatarUrl}`} alt={currentUser.name} className="w-8 h-8 rounded-full border border-border object-cover" />
             ) : (
               <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary border border-primary/30">
                 {currentUser.name.charAt(0).toUpperCase()}
@@ -122,13 +164,52 @@ export function CommentSection({ taskId }: Props) {
         )}
 
         <div className="flex-1 relative">
+          <AnimatePresence>
+            {mentionQuery && project && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                className="absolute bottom-full left-0 mb-2 w-64 bg-card border border-border rounded-xl shadow-xl overflow-hidden z-50 max-h-48 overflow-y-auto"
+              >
+                {project.members
+                  .filter((m) => m.user.name.toLowerCase().includes(mentionQuery.query.toLowerCase()))
+                  .map((m) => (
+                    <button
+                      key={m.user.id}
+                      onClick={() => insertMention(m.user.name)}
+                      className="w-full flex items-center gap-3 px-4 py-2 hover:bg-secondary/50 text-left transition-colors"
+                    >
+                      {m.user.avatarUrl ? (
+                        <img src={m.user.avatarUrl.startsWith('http') ? m.user.avatarUrl : `http://localhost:5000${m.user.avatarUrl}`} alt={m.user.name} className="w-6 h-6 rounded-full object-cover" />
+                      ) : (
+                        <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">
+                          {m.user.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <span className="text-sm font-medium text-foreground">{m.user.name}</span>
+                    </button>
+                  ))}
+                {project.members.filter((m) => m.user.name.toLowerCase().includes(mentionQuery.query.toLowerCase())).length === 0 && (
+                  <div className="px-4 py-3 text-xs text-muted-foreground text-center">No users found</div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <textarea
             ref={textareaRef}
             value={draft}
-            onChange={(e) => { setDraft(e.target.value); onStartTyping(); }}
+            onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            onBlur={onStopTyping}
-            placeholder="Write a comment... (Ctrl+Enter to send)"
+            onBlur={() => {
+              // Delay hiding to allow click on mention suggestion
+              setTimeout(() => {
+                setMentionQuery(null);
+                onStopTyping();
+              }, 200);
+            }}
+            placeholder="Write a comment... (Ctrl+Enter to send). Type @ to mention."
             rows={2}
             disabled={isSending}
             className="w-full pl-4 pr-12 py-3 rounded-2xl bg-secondary/30 border border-border focus:border-primary focus:ring-1 focus:ring-primary text-sm text-foreground outline-none transition-all resize-none disabled:opacity-60 placeholder:text-muted-foreground/60"
@@ -136,7 +217,7 @@ export function CommentSection({ taskId }: Props) {
           <button
             onClick={handleSend}
             disabled={isSending || !draft.trim()}
-            className="absolute right-2 top-2 h-8 w-8 flex items-center justify-center rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all disabled:opacity-40 shadow-sm"
+            className="absolute right-2 bottom-2 h-8 w-8 flex items-center justify-center rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all disabled:opacity-40 shadow-sm"
           >
             {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           </button>

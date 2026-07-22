@@ -11,7 +11,7 @@ import { useState } from 'react';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, isLoading, error } = useAuthStore();
+  const { login, demoLogin, isLoading, error } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
@@ -19,6 +19,15 @@ export default function LoginPage() {
     e.preventDefault();
     try {
       await login(email, password);
+      router.push('/dashboard');
+    } catch (err) {
+      // Error is handled in store
+    }
+  };
+
+  const handleDemoLogin = async () => {
+    try {
+      await demoLogin();
       router.push('/dashboard');
     } catch (err) {
       // Error is handled in store
@@ -110,6 +119,24 @@ export default function LoginPage() {
               className="w-full h-11 rounded-xl flex items-center justify-center gap-2 bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors shadow-lg shadow-primary/25 hover:shadow-primary/40 disabled:opacity-70 disabled:cursor-not-allowed"
             >
               {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
+            </button>
+            
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-border" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">Or</span>
+              </div>
+            </div>
+
+            <button 
+              type="button"
+              onClick={handleDemoLogin}
+              disabled={isLoading}
+              className="w-full h-11 rounded-xl flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-medium transition-colors shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              Try Demo Workspace
             </button>
           </form>
 

@@ -12,6 +12,8 @@ import {
   updateTaskPrioritySchema,
   updateTaskDueDateSchema,
 } from '../validators/taskValidators';
+import { checklistRouter } from './checklistRoutes';
+import { attachmentRouter } from './attachmentRoutes';
 
 const taskRoutes = Router();
 
@@ -22,6 +24,7 @@ taskRoutes
   .post(validate(createTaskSchema), taskController.create);
 
 taskRoutes.get('/filter', taskController.getFilteredTasks);
+taskRoutes.get('/calendar', taskController.getCalendarTasks);
 
 taskRoutes
   .route('/:id')
@@ -36,5 +39,7 @@ taskRoutes.patch('/:id/priority', validate(updateTaskPrioritySchema), taskContro
 taskRoutes.patch('/:id/due-date', validate(updateTaskDueDateSchema), taskController.updateDueDate);
 
 taskRoutes.get('/:taskId/activity', activityController.getTaskActivity);
+taskRoutes.use('/:taskId/checklists', checklistRouter);
+taskRoutes.use('/:taskId/attachments', attachmentRouter);
 
 export { taskRoutes };

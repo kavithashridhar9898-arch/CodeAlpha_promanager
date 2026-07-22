@@ -1,0 +1,40 @@
+{
+  "sidebar": {
+    "dashboard": "Panel de Control",
+    "projects": "Proyectos",
+    "calendar": "Calendario",
+    "teams": "Equipos",
+    "settings": "Configuración",
+    "logout": "Cerrar Sesión"
+  },
+  "settings": {
+    "title": "Configuración",
+    "profile": "Perfil",
+    "preferences": "Preferencias",
+    "security": "Seguridad",
+    "preferencesTab": {
+      "title": "Preferencias de la Aplicación",
+      "description": "Personaliza tu experiencia en ProManager en todos tus dispositivos.",
+      "language": "Idioma",
+      "timezone": "Zona Horaria",
+      "theme": "Tema",
+      "dateFormat": "Formato de Fecha",
+      "save": "Guardar Preferencias",
+      "saving": "Guardando...",
+      "success": "Preferencias actualizadas con éxito",
+      "failed": "Error al actualizar preferencias"
+    },
+    "profileTab": {
+      "title": "Detalles del Perfil",
+      "description": "Administra tu información personal y cómo te ven los demás en la plataforma.",
+      "fullName": "Nombre Completo",
+      "titleField": "Título Profesional",
+      "bio": "Biografía",
+      "uploadPhoto": "Subir nueva foto",
+      "save": "Guardar Cambios",
+      "saving": "Guardando...",
+      "success": "Perfil actualizado con éxito",
+      "failed": "Error al actualizar perfil"
+    }
+  }
+}

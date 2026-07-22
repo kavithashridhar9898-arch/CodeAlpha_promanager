@@ -21,7 +21,7 @@ export function ActivityCard({ activity, index }: ActivityCardProps) {
       <div className="flex-shrink-0 mt-1 relative">
         <div className="absolute inset-0 bg-primary/20 rounded-full blur-md opacity-0 group-hover:opacity-100 transition-opacity" />
         {activity.user.avatarUrl ? (
-          <img src={activity.user.avatarUrl} alt={activity.user.name} className="w-10 h-10 rounded-full object-cover relative z-10 border border-border" />
+          <img src={activity.user.avatarUrl.startsWith('http') ? activity.user.avatarUrl : `http://localhost:5000${activity.user.avatarUrl}`} alt={activity.user.name} className="w-10 h-10 rounded-full object-cover relative z-10 border border-border" />
         ) : (
           <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold relative z-10 border border-primary/20">
             {activity.user.name.charAt(0).toUpperCase()}

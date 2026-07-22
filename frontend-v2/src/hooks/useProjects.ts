@@ -104,7 +104,7 @@ export const useInviteMember = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ projectId, email, role }: { projectId: string; email: string; role: 'ADMIN' | 'MEMBER' }) => {
-      const { data } = await api.post(`/projects/${projectId}/invite`, { email, role });
+      const { data } = await api.post(`/projects/${projectId}/invitations`, { email, role });
       return data.data;
     },
     onSuccess: (_, variables) => {

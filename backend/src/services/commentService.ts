@@ -50,6 +50,24 @@ export const commentService = {
     });
   },
 
+  async getById(id: string, userId: string) {
+    const comment = await prisma.comment.findUnique({
+      where: { id },
+      include: {
+        ...commentInclude,
+        task: { select: { column: { select: { board: { select: { projectId: true } } } } } }
+      }
+    });
+    if (!comment) throw new AppError('Comment not found.', 404);
+    
+    // Check if user has access to the project
+    await prisma.projectMember.findUniqueOrThrow({
+      where: { userId_projectId: { userId, projectId: comment.task.column.board.projectId } }
+    }).catch(() => { throw new AppError('Access denied.', 403); });
+    
+    return comment;
+  },
+
   async create(
     taskId: string,
     authorId: string,

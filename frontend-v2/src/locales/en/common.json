@@ -1,0 +1,41 @@
+{
+  "sidebar": {
+    "dashboard": "Dashboard",
+    "projects": "Projects",
+    "calendar": "Calendar",
+    "teams": "Teams",
+    "chat": "Chat",
+    "settings": "Settings",
+    "logout": "Log Out"
+  },
+  "settings": {
+    "title": "Settings",
+    "profile": "Profile",
+    "preferences": "Preferences",
+    "security": "Security",
+    "preferencesTab": {
+      "title": "App Preferences",
+      "description": "Customize your ProManager experience across all your devices.",
+      "language": "Language",
+      "timezone": "Timezone",
+      "theme": "Theme",
+      "dateFormat": "Date Format",
+      "save": "Save Preferences",
+      "saving": "Saving...",
+      "success": "Preferences updated successfully",
+      "failed": "Failed to update preferences"
+    },
+    "profileTab": {
+      "title": "Profile Details",
+      "description": "Manage your personal information and how others see you on the platform.",
+      "fullName": "Full Name",
+      "titleField": "Professional Title",
+      "bio": "Bio",
+      "uploadPhoto": "Upload new photo",
+      "save": "Save Changes",
+      "saving": "Saving...",
+      "success": "Profile updated successfully",
+      "failed": "Failed to update profile"
+    }
+  }
+}

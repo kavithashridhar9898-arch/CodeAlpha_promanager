@@ -61,5 +61,24 @@ export const activityService = {
       orderBy: { createdAt: 'desc' },
       include: logInclude,
     });
+  },
+
+  async getGlobalActivity(userId: string, filters?: { action?: string }) {
+    const where: any = {
+      project: {
+        OR: [
+          { ownerId: userId },
+          { members: { some: { userId } } }
+        ]
+      }
+    };
+    if (filters?.action) where.action = filters.action;
+
+    return prisma.activityLog.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 100, // Limit to 100 recent entries for performance
+      include: logInclude,
+    });
   }
 };

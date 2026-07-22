@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Clock, AlignLeft, Send, Pencil, Check, Loader2, AlertCircle, Calendar } from 'lucide-react';
+import { X, Clock, AlignLeft, Send, Pencil, Check, Loader2, AlertCircle, Calendar, PlayCircle } from 'lucide-react';
 import { Task } from './KanbanBoard';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -10,6 +10,9 @@ import { z } from 'zod';
 import { useUpdateTask, useDeleteTask } from '@/hooks/useTasks';
 import { useProject } from '@/hooks/useProjects';
 import { CommentSection } from './CommentSection';
+import { ChecklistSection } from './ChecklistSection';
+import { AttachmentSection } from './AttachmentSection';
+import { api } from '@/lib/axios';
 
 const schema = z.object({
   title: z.string().min(1, 'Task title is required').max(200),
@@ -70,17 +73,38 @@ export function TaskDrawer({ projectId, task, isOpen, onClose }: TaskDrawerProps
     }
   };
 
+  const handleStartTimer = async () => {
+    if (!task) return;
+    try {
+      await api.post('/time/timer/start', {
+        projectId,
+        taskId: task.id,
+        description: `Working on: ${task.title}`
+      });
+      alert('Timer started successfully!');
+      // Force reload or trigger global state to update FloatingTimer
+      window.location.reload();
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'Failed to start timer.');
+    }
+  };
+
   return (
     <AnimatePresence>
       {isOpen && task && (
-        <>
+        <motion.div 
+          initial={{ opacity: 0 }} 
+          animate={{ opacity: 1 }} 
+          exit={{ opacity: 0 }} 
+          className="fixed inset-0 z-50 flex justify-end bg-background/50 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="task-drawer-title"
+        >
           {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+          <div
             onClick={onClose}
-            className="fixed inset-0 bg-background/50 backdrop-blur-sm z-40"
+            className="absolute inset-0"
           />
 
           {/* Drawer */}
@@ -89,7 +113,7 @@ export function TaskDrawer({ projectId, task, isOpen, onClose }: TaskDrawerProps
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed inset-y-0 right-0 w-full max-w-lg bg-card border-l border-border shadow-2xl z-50 flex flex-col"
+            className="relative w-full max-w-lg bg-card border-l border-border shadow-2xl flex flex-col"
           >
             {/* Header */}
             <div className="flex items-center justify-between p-6 border-b border-border bg-secondary/10">
@@ -117,7 +141,15 @@ export function TaskDrawer({ projectId, task, isOpen, onClose }: TaskDrawerProps
                     <Pencil className="w-3.5 h-3.5" /> Edit
                   </button>
                 )}
-                <button onClick={onClose} className="p-2 rounded-full hover:bg-secondary/80 text-muted-foreground transition-colors">
+                {!isEditing && (
+                  <button 
+                    onClick={handleStartTimer} 
+                    className="p-2 flex items-center gap-2 rounded-xl bg-primary/10 border border-primary/20 hover:bg-primary/20 text-primary text-xs font-semibold transition-colors"
+                  >
+                    <PlayCircle className="w-3.5 h-3.5" /> Track Time
+                  </button>
+                )}
+                <button onClick={onClose} aria-label="Close task details" className="p-2 rounded-full hover:bg-secondary/80 text-muted-foreground transition-colors">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -128,7 +160,7 @@ export function TaskDrawer({ projectId, task, isOpen, onClose }: TaskDrawerProps
               {!isEditing ? (
                 <>
                   <div>
-                    <h2 className="text-2xl font-bold text-foreground mb-4 leading-tight">{task.title}</h2>
+                    <h2 id="task-drawer-title" className="text-2xl font-bold text-foreground mb-4 leading-tight">{task.title}</h2>
                     <div className="flex items-center gap-4 mt-4">
                       <span className={`text-[10px] uppercase font-bold px-2.5 py-1 rounded-md flex items-center gap-1.5 border ${
                         task.priority === 'HIGH' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
@@ -152,7 +184,7 @@ export function TaskDrawer({ projectId, task, isOpen, onClose }: TaskDrawerProps
                         {task.assignee ? (
                           <>
                             {task.assignee.avatarUrl ? (
-                              <img src={task.assignee.avatarUrl} alt={task.assignee.name} className="w-6 h-6 rounded-full border border-border" />
+                              <img src={task.assignee.avatarUrl.startsWith('http') ? task.assignee.avatarUrl : `http://localhost:5000${task.assignee.avatarUrl}`} alt={task.assignee.name} className="w-6 h-6 rounded-full border border-border object-cover" />
                             ) : (
                               <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary border border-primary/20">
                                 {task.assignee.name.charAt(0).toUpperCase()}
@@ -190,8 +222,47 @@ export function TaskDrawer({ projectId, task, isOpen, onClose }: TaskDrawerProps
                     </div>
                   </div>
 
+                  {task.taskLinks && task.taskLinks.length > 0 && (
+                    <div>
+                      <h3 className="text-xs uppercase tracking-wider font-bold text-muted-foreground flex items-center gap-2 mb-3">
+                        <Send className="w-4 h-4" /> Development
+                      </h3>
+                      <div className="space-y-2">
+                        {task.taskLinks.map((link: any) => {
+                          const item = link.linkType === 'COMMIT' ? link.commit : link.pullRequest;
+                          if (!item) return null;
+                          return (
+                            <a 
+                              key={link.id} 
+                              href={item.url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-3 p-3 bg-secondary/30 border border-border rounded-xl hover:bg-secondary/50 transition-colors"
+                            >
+                              <div className="w-8 h-8 rounded-full bg-[#24292e] flex items-center justify-center text-white shrink-0">
+                                <Send className="w-4 h-4" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <h4 className="text-sm font-semibold truncate text-foreground">
+                                  {link.linkType === 'COMMIT' ? item.message : item.title}
+                                </h4>
+                                <div className="text-xs text-muted-foreground flex items-center gap-2">
+                                  <span>{link.linkType === 'COMMIT' ? 'Commit' : 'Pull Request'}</span>
+                                  <span>•</span>
+                                  <span>{item.authorName}</span>
+                                </div>
+                              </div>
+                            </a>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  <ChecklistSection taskId={task.id} />
+                  <AttachmentSection taskId={task.id} />
                   <div>
-                    <CommentSection taskId={task.id} />
+                    <CommentSection taskId={task.id} projectId={projectId} />
                   </div>
                 </>
               ) : (
@@ -299,7 +370,7 @@ export function TaskDrawer({ projectId, task, isOpen, onClose }: TaskDrawerProps
               </div>
             )}
           </motion.div>
-        </>
+        </motion.div>
       )}
     </AnimatePresence>
   );

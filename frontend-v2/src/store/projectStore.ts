@@ -43,7 +43,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   moveTask: async (taskId, newStatus) => {
     // Optimistic update handled in the component
     try {
-      await api.put(`/tasks/${taskId}/move`, { status: newStatus });
+      await api.patch(`/tasks/${taskId}/move`, { columnId: newStatus, order: 0 });
     } catch (error: any) {
       console.error('Failed to move task on server:', error);
       // We might want to revert the optimistic update here if it fails

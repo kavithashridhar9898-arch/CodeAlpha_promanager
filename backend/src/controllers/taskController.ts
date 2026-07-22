@@ -4,6 +4,7 @@ import { successResponse } from '../utils/response';
 import { param } from '../utils/param';
 import { emitToProject } from '../socket';
 import prisma from '../config/database';
+import { TriggerService } from '../services/automation/TriggerService';
 
 /** Resolve projectId from a taskId (column → board → project) */
 async function getProjectIdFromTask(taskId: string): Promise<string | null> {
@@ -24,6 +25,64 @@ async function getProjectIdFromColumn(columnId: string): Promise<string | null> 
 }
 
 export const taskController = {
+  async getCalendarTasks(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = req.user!.id;
+      // Find all projects where user is a member or owner
+      const memberships = await prisma.projectMember.findMany({
+        where: { userId },
+        select: { projectId: true },
+      });
+      const ownedProjects = await prisma.project.findMany({
+        where: { ownerId: userId },
+        select: { id: true },
+      });
+      const projectIds = [
+        ...new Set([
+          ...memberships.map((m) => m.projectId),
+          ...ownedProjects.map((p) => p.id),
+        ]),
+      ];
+
+      const tasks = await prisma.task.findMany({
+        where: {
+          dueDate: { not: null },
+          column: { board: { projectId: { in: projectIds } } },
+        },
+        include: {
+          assignee: { select: { id: true, name: true, email: true, avatarUrl: true } },
+          labels: { include: { label: true } },
+          column: {
+            include: { board: { include: { project: { select: { id: true, name: true } } } } },
+          },
+          _count: { select: { comments: true } },
+        },
+        orderBy: { dueDate: 'asc' },
+      });
+
+      // Shape: flatten project info into task
+      const shaped = tasks.map((t) => ({
+        id: t.id,
+        title: t.title,
+        description: t.description,
+        status: t.status,
+        priority: t.priority,
+        dueDate: t.dueDate,
+        order: t.order,
+        columnId: t.columnId,
+        assignee: t.assignee,
+        labels: t.labels,
+        _count: t._count,
+        projectId: t.column.board.projectId,
+        projectName: t.column.board.project.name,
+      }));
+
+      res.json(successResponse(shaped, 'Calendar tasks fetched'));
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async getByProject(req: Request, res: Response, next: NextFunction) {
     try {
       const tasks = await taskService.getByProject(param(req, 'projectId'), req.user!.id);
@@ -74,7 +133,10 @@ export const taskController = {
 
       // Real-time broadcast
       const projectId = await getProjectIdFromColumn(task.columnId);
-      if (projectId) emitToProject(projectId, 'task_created', task);
+      if (projectId) {
+        emitToProject(projectId, 'task_created', task);
+        TriggerService.handleEvent('TASK_CREATED', { task }, projectId);
+      }
     } catch (error) {
       next(error);
     }
@@ -86,7 +148,10 @@ export const taskController = {
       res.json(successResponse(task, 'Task updated'));
 
       const projectId = await getProjectIdFromTask(task.id);
-      if (projectId) emitToProject(projectId, 'task_updated', task);
+      if (projectId) {
+        emitToProject(projectId, 'task_updated', task);
+        TriggerService.handleEvent('TASK_UPDATED', { task }, projectId);
+      }
     } catch (error) {
       next(error);
     }
@@ -121,7 +186,10 @@ export const taskController = {
       res.json(successResponse(task, 'Task status updated'));
 
       const projectId = await getProjectIdFromTask(task.id);
-      if (projectId) emitToProject(projectId, 'task_updated', task);
+      if (projectId) {
+        emitToProject(projectId, 'task_updated', task);
+        TriggerService.handleEvent('TASK_STATUS_CHANGED', { task }, projectId);
+      }
     } catch (error) {
       next(error);
     }
@@ -147,7 +215,10 @@ export const taskController = {
       res.json(successResponse(task, 'Task assignee updated'));
 
       const projectId = await getProjectIdFromTask(task.id);
-      if (projectId) emitToProject(projectId, 'task_assigned', task);
+      if (projectId) {
+        emitToProject(projectId, 'task_assigned', task);
+        TriggerService.handleEvent('TASK_ASSIGNED', { task }, projectId);
+      }
     } catch (error) {
       next(error);
     }

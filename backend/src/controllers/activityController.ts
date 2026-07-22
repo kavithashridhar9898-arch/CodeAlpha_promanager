@@ -39,4 +39,16 @@ export const activityController = {
       next(error);
     }
   },
+
+  async getGlobalActivity(req: Request, res: Response, next: NextFunction) {
+    try {
+      const filters: { action?: string } = {};
+      if (typeof req.query.action === 'string') filters.action = req.query.action;
+      
+      const activities = await activityService.getGlobalActivity(req.user!.id, filters);
+      res.json(successResponse(activities, 'Global activity logs fetched'));
+    } catch (error) {
+      next(error);
+    }
+  },
 };

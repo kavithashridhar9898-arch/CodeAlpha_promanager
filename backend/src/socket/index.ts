@@ -34,6 +34,21 @@ export interface ServerToClientEvents {
   // Typing
   user_typing:        (payload: { userId: string; userName: string; taskId: string }) => void;
   user_stopped_typing:(payload: { userId: string; taskId: string }) => void;
+
+  // ── Chat Hub Events ───────────────────────────────────────────────────────
+  chat_message:         (message: Record<string, unknown>) => void;
+  chat_message_updated: (message: Record<string, unknown>) => void;
+  chat_message_deleted: (payload: { messageId: string; conversationId: string }) => void;
+  chat_reaction:        (payload: { messageId: string; conversationId: string; reaction: Record<string, unknown>; action: string }) => void;
+  chat_typing:          (payload: { userId: string; userName: string; conversationId: string; isTyping: boolean }) => void;
+  chat_read:            (payload: { conversationId: string; userId: string; readAt: string }) => void;
+  presence_update:      (payload: { userId: string; status: 'online' | 'away' | 'busy' | 'offline' }) => void;
+  meeting_started:      (meeting: Record<string, unknown>) => void;
+  conversation_created: (conversation: Record<string, unknown>) => void;
+  
+  // Whiteboard
+  whiteboard_draw_receive: (stroke: Record<string, unknown>) => void;
+  whiteboard_clear_receive: () => void;
 }
 
 export interface ClientToServerEvents {
@@ -41,9 +56,21 @@ export interface ClientToServerEvents {
   join_project:  (projectId: string) => void;
   leave_project: (projectId: string) => void;
 
-  // Typing
+  // Typing (tasks)
   typing_start: (payload: { taskId: string }) => void;
   typing_stop:  (payload: { taskId: string }) => void;
+
+  // ── Chat Hub Events ───────────────────────────────────────────────────────
+  join_conversation:   (conversationId: string) => void;
+  leave_conversation:  (conversationId: string) => void;
+  chat_typing_start:   (payload: { conversationId: string }) => void;
+  chat_typing_stop:    (payload: { conversationId: string }) => void;
+  chat_mark_read:      (payload: { conversationId: string }) => void;
+  update_presence:     (payload: { status: 'online' | 'away' | 'busy' | 'offline' }) => void;
+
+  // Whiteboard
+  whiteboard_draw:     (payload: { conversationId: string; stroke: Record<string, unknown> }) => void;
+  whiteboard_clear:    (payload: { conversationId: string }) => void;
 }
 
 export interface OnlineUser {
@@ -200,6 +227,60 @@ export function initializeSocket(httpServer: HttpServer): Server<ClientToServerE
       });
     });
 
+    // ── Chat: join/leave conversation rooms ───────────────────────────────────
+    socket.on('join_conversation', (conversationId) => {
+      socket.join(`conv:${conversationId}`);
+    });
+
+    socket.on('leave_conversation', (conversationId) => {
+      socket.leave(`conv:${conversationId}`);
+    });
+
+    // ── Chat: typing indicators ────────────────────────────────────────────────
+    socket.on('chat_typing_start', ({ conversationId }) => {
+      socket.to(`conv:${conversationId}`).emit('chat_typing', {
+        userId,
+        userName,
+        conversationId,
+        isTyping: true,
+      });
+    });
+
+    socket.on('chat_typing_stop', ({ conversationId }) => {
+      socket.to(`conv:${conversationId}`).emit('chat_typing', {
+        userId,
+        userName,
+        conversationId,
+        isTyping: false,
+      });
+    });
+
+    // ── Chat: mark read ────────────────────────────────────────────────────────
+    socket.on('chat_mark_read', ({ conversationId }) => {
+      socket.to(`conv:${conversationId}`).emit('chat_read', {
+        conversationId,
+        userId,
+        readAt: new Date().toISOString(),
+      });
+    });
+
+    // ── Presence status update ─────────────────────────────────────────────────
+    socket.on('update_presence', ({ status }) => {
+      // Broadcast to all rooms this user is part of
+      socket.data.joinedProjects?.forEach((projectId) => {
+        io.to(`project:${projectId}`).emit('presence_update', { userId, status });
+      });
+    });
+
+    // ── Whiteboard ─────────────────────────────────────────────────────────────
+    socket.on('whiteboard_draw', ({ conversationId, stroke }) => {
+      socket.to(`conv:${conversationId}`).emit('whiteboard_draw_receive', stroke);
+    });
+
+    socket.on('whiteboard_clear', ({ conversationId }) => {
+      socket.to(`conv:${conversationId}`).emit('whiteboard_clear_receive');
+    });
+
     // ── Disconnect ────────────────────────────────────────────────────────────
     socket.on('disconnect', (reason) => {
       console.log(`🔌 Disconnected: ${socket.id} (${userName}) — ${reason}`);
@@ -254,4 +335,13 @@ export function emitToUser(
   data: unknown,
 ) {
   _io?.to(`user:${userId}`).emit(event as keyof ServerToClientEvents, data as any);
+}
+
+/** Emit to everyone in a conversation room */
+export function emitToConversation(
+  conversationId: string,
+  event: keyof ServerToClientEvents,
+  data: unknown,
+) {
+  _io?.to(`conv:${conversationId}`).emit(event as keyof ServerToClientEvents, data as any);
 }

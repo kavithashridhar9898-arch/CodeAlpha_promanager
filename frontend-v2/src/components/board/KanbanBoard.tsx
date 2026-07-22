@@ -31,6 +31,7 @@ export type Task = {
   assignee?: { id: string; name: string; avatarUrl?: string };
   dueDate?: string;
   createdAt?: string;
+  taskLinks?: any[];
 };
 
 

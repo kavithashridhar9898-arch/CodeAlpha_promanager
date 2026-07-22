@@ -19,6 +19,7 @@ commentRouter
 // DELETE /api/comments/:id  — delete a comment
 commentRouter
   .route('/comments/:id')
+  .get(commentController.getById)
   .put(validate(updateCommentSchema), commentController.update)
   .delete(commentController.delete);
 

@@ -40,6 +40,15 @@ export const commentController = {
     }
   },
 
+  async getById(req: Request, res: Response, next: NextFunction) {
+    try {
+      const comment = await commentService.getById(param(req, 'id'), req.user!.id);
+      res.json(successResponse(comment, 'Comment fetched'));
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async create(req: Request, res: Response, next: NextFunction) {
     try {
       const { content, parentCommentId, mentionedUserIds } = req.body;

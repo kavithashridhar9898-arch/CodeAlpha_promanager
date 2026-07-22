@@ -53,7 +53,7 @@ export function ProjectCard({ project, index }: { project: Project, index: numbe
       <div className="px-6 py-4 bg-secondary/30 border-t border-border/50 flex justify-between items-center relative z-10">
         <div className="flex items-center gap-2">
           {project.owner.avatarUrl ? (
-            <img src={project.owner.avatarUrl} alt={project.owner.name} className="w-6 h-6 rounded-full" />
+            <img src={project.owner.avatarUrl.startsWith('http') ? project.owner.avatarUrl : `http://localhost:5000${project.owner.avatarUrl}`} alt={project.owner.name} className="w-6 h-6 rounded-full" />
           ) : (
             <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center text-[10px] font-bold text-primary-foreground">
               {project.owner.name.charAt(0).toUpperCase()}

@@ -35,6 +35,12 @@ const taskInclude = {
   },
   labels: { include: { label: true } },
   _count: { select: { comments: true } },
+  taskLinks: {
+    include: {
+      commit: true,
+      pullRequest: true,
+    }
+  },
 } as const;
 
 async function assertProjectAccess(projectId: string, userId: string) {

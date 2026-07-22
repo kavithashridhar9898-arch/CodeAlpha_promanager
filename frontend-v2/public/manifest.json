@@ -1,0 +1,13 @@
+{
+  "name": "ProManager",
+  "short_name": "ProManager",
+  "description": "Enterprise Project Management Platform",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#09090b",
+  "theme_color": "#6366f1",
+  "orientation": "portrait-primary",
+  "screenshots": [],
+  "categories": ["productivity", "business"],
+  "prefer_related_applications": false
+}

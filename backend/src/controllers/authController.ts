@@ -47,6 +47,21 @@ export const authController = {
     }
   },
 
+  async demoLogin(req: Request, res: Response, next: NextFunction) {
+    try {
+      // Hardcode the demo user credentials for the 1-click login
+      const { user, accessToken, refreshToken } = await authService.login({ 
+        email: 'demo@promanager.com', 
+        password: 'password123' 
+      });
+      
+      setRefreshCookie(res, refreshToken);
+      res.status(200).json(successResponse({ user, accessToken }, 'Demo login successful'));
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async refresh(req: Request, res: Response, next: NextFunction) {
     try {
       const currentToken = req.cookies[REFRESH_TOKEN_COOKIE];
@@ -91,6 +106,15 @@ export const authController = {
     try {
       const user = await authService.updateMe(req.user!.id, req.body);
       res.status(200).json(successResponse(user, 'Profile updated'));
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getUserById(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = await authService.getUserById(req.params.userId as string);
+      res.status(200).json(successResponse(user, 'User fetched'));
     } catch (error) {
       next(error);
     }

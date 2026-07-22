@@ -43,7 +43,7 @@ export const useComments = (taskId: string) =>
 export const useCreateComment = (taskId: string) => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { content: string; parentCommentId?: string | null }) => {
+    mutationFn: async (payload: { content: string; parentCommentId?: string | null; mentionedUserIds?: string[] }) => {
       const { data } = await api.post(`/tasks/${taskId}/comments`, payload);
       return data.data as Comment;
     },
@@ -56,8 +56,8 @@ export const useCreateComment = (taskId: string) => {
 export const useUpdateComment = (taskId: string) => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, content }: { id: string; content: string }) => {
-      const { data } = await api.put(`/comments/${id}`, { content });
+    mutationFn: async ({ id, content, mentionedUserIds }: { id: string; content: string; mentionedUserIds?: string[] }) => {
+      const { data } = await api.put(`/comments/${id}`, { content, mentionedUserIds });
       return data.data as Comment;
     },
     onSuccess: () => {

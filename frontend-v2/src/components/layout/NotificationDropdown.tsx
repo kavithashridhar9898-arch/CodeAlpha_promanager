@@ -117,15 +117,29 @@ function NotificationCard({ notification, onClose }: { notification: Notificatio
     }
   };
 
-  const handleClick = () => {
+  const handleClick = async () => {
     if (!notification.isRead) markRead(notification.id);
     
-    if (notification.referenceType === 'PROJECT' && notification.referenceId) {
-      router.push(`/dashboard/projects/${notification.referenceId}`);
-      onClose();
-    } else if (notification.referenceType === 'TASK' && notification.referenceId) {
-      // Just mark it as read for now, navigating to a task specifically needs the project ID usually
-      // or a global search capability if we implement global task lookup
+    try {
+      if (notification.referenceType === 'PROJECT' && notification.referenceId) {
+        router.push(`/dashboard/projects/${notification.referenceId}`);
+        onClose();
+      } else if (notification.referenceType === 'TASK' && notification.referenceId) {
+        const { api } = await import('@/lib/axios');
+        const { data } = await api.get(`/tasks/${notification.referenceId}`);
+        const projectId = data.data.column.board.projectId;
+        router.push(`/dashboard/projects/${projectId}?taskId=${notification.referenceId}`);
+        onClose();
+      } else if (notification.referenceType === 'COMMENT' && notification.referenceId) {
+        const { api } = await import('@/lib/axios');
+        const { data } = await api.get(`/comments/${notification.referenceId}`);
+        const projectId = data.data.task.column.board.projectId;
+        const taskId = data.data.taskId;
+        router.push(`/dashboard/projects/${projectId}?taskId=${taskId}`);
+        onClose();
+      }
+    } catch (error) {
+      console.error('Failed to navigate to notification target', error);
     }
   };
 

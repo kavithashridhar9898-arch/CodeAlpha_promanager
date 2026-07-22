@@ -1,44 +1,112 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  AreaChart,
-  Area
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area
 } from 'recharts';
-import { TrendingUp, Users, CheckCircle2, Clock, Loader2, AlertCircle } from 'lucide-react';
+import { TrendingUp, Users, CheckCircle2, Clock, Loader2, AlertCircle, GripVertical, LayoutGrid } from 'lucide-react';
 import { useDashboardOverview, useDashboardAnalytics } from '@/hooks/useDashboard';
+import { PendingInvitations } from '@/components/invitations/PendingInvitations';
+import {
+  DndContext,
+  DragEndEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  horizontalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
-const StatCard = ({ title, value, change, icon: Icon, delay }: any) => (
-  <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.5, delay }}
-    className="p-6 rounded-2xl bg-card border border-border shadow-sm hover:shadow-md transition-shadow"
-  >
-    <div className="flex items-center justify-between mb-4">
-      <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-        <Icon className="w-5 h-5" />
+// ── Widget definitions ─────────────────────────────────────────────────────────
+
+const INITIAL_WIDGET_ORDER = ['active_projects', 'completed_tasks', 'pending_tasks', 'overdue_tasks'];
+
+function getWidgetData(id: string, overview: any) {
+  switch (id) {
+    case 'active_projects': return { title: 'Active Projects', value: overview.activeProjects, icon: TrendingUp, color: 'text-indigo-400', bg: 'bg-indigo-500/10' };
+    case 'completed_tasks': return { title: 'Tasks Completed', value: overview.completedTasks, icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-500/10' };
+    case 'pending_tasks': return { title: 'Pending Tasks', value: overview.pendingTasks, icon: Users, color: 'text-amber-400', bg: 'bg-amber-500/10' };
+    case 'overdue_tasks': return { title: 'Overdue Tasks', value: overview.overdueTasks, icon: Clock, color: 'text-rose-400', bg: 'bg-rose-500/10' };
+    default: return null;
+  }
+}
+
+// ── Sortable stat card ─────────────────────────────────────────────────────────
+
+function SortableStatCard({ id, overview }: { id: string; overview: any }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const widget = getWidgetData(id, overview);
+  if (!widget) return null;
+  const Icon = widget.icon;
+
+  return (
+    <motion.div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 50 : 'auto' }}
+      className={`relative p-6 rounded-2xl bg-card border transition-all ${
+        isDragging ? 'border-primary shadow-2xl shadow-primary/20 scale-[1.03] opacity-90' : 'border-border shadow-sm hover:shadow-md'
+      }`}
+    >
+      {/* Drag handle */}
+      <button
+        {...attributes}
+        {...listeners}
+        className="absolute top-3 right-3 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary opacity-0 group-hover:opacity-100 transition-all cursor-grab active:cursor-grabbing"
+        title="Drag to reorder"
+      >
+        <GripVertical className="w-4 h-4" />
+      </button>
+
+      <div className="flex items-center justify-between mb-4">
+        <div className={`w-10 h-10 rounded-xl ${widget.bg} flex items-center justify-center ${widget.color}`}>
+          <Icon className="w-5 h-5" />
+        </div>
       </div>
-      <span className={`text-sm font-medium ${change >= 0 ? 'text-emerald-500' : 'text-destructive'}`}>
-        {change >= 0 ? '+' : ''}{change}%
-      </span>
-    </div>
-    <p className="text-sm text-muted-foreground font-medium mb-1">{title}</p>
-    <h3 className="text-3xl font-bold tracking-tight text-foreground">{value}</h3>
-  </motion.div>
-);
+      <p className="text-sm text-muted-foreground font-medium mb-1">{widget.title}</p>
+      <h3 className="text-3xl font-bold tracking-tight text-foreground">{widget.value ?? '—'}</h3>
+    </motion.div>
+  );
+}
+
+// ── Main dashboard page ────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
   const { data: overview, isLoading: isOverviewLoading, error: overviewError } = useDashboardOverview();
   const { data: analytics, isLoading: isAnalyticsLoading } = useDashboardAnalytics();
+
+  // Widget order: persist in localStorage
+  const [widgetOrder, setWidgetOrder] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return INITIAL_WIDGET_ORDER;
+    try {
+      const saved = localStorage.getItem('dashboard_widget_order');
+      return saved ? JSON.parse(saved) : INITIAL_WIDGET_ORDER;
+    } catch {
+      return INITIAL_WIDGET_ORDER;
+    }
+  });
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setWidgetOrder((prev) => {
+      const oldIdx = prev.indexOf(active.id as string);
+      const newIdx = prev.indexOf(over.id as string);
+      const next = arrayMove(prev, oldIdx, newIdx);
+      try { localStorage.setItem('dashboard_widget_order', JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, []);
 
   if (isOverviewLoading || isAnalyticsLoading) {
     return (
@@ -63,41 +131,40 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      
       {/* Header */}
       <div className="flex items-end justify-between">
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5 }}
-        >
+        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5 }}>
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Overview</h1>
           <p className="text-muted-foreground mt-1">Here's what's happening in your workspace today.</p>
         </motion.div>
-        
-        <motion.button 
+        <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5, delay: 0.2 }}
-          className="h-10 px-4 rounded-xl bg-primary text-primary-foreground font-medium text-sm hover:bg-primary/90 transition-colors shadow-lg shadow-primary/25"
+          className="flex items-center gap-2 text-xs text-muted-foreground bg-secondary/40 border border-border rounded-xl px-3 py-2"
         >
-          Generate Report
-        </motion.button>
+          <GripVertical className="w-3.5 h-3.5" />
+          <span>Drag cards to reorder</span>
+        </motion.div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard title="Active Projects" value={overview.activeProjects} change={0} icon={TrendingUp} delay={0.1} />
-        <StatCard title="Tasks Completed" value={overview.completedTasks} change={0} icon={CheckCircle2} delay={0.2} />
-        <StatCard title="Pending Tasks" value={overview.pendingTasks} change={0} icon={Users} delay={0.3} />
-        <StatCard title="Overdue Tasks" value={overview.overdueTasks} change={0} icon={Clock} delay={0.4} />
-      </div>
+      <PendingInvitations />
+
+      {/* Draggable Stat Cards */}
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={widgetOrder} strategy={horizontalListSortingStrategy}>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 group">
+            {widgetOrder.map((id) => (
+              <SortableStatCard key={id} id={id} overview={overview} />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
 
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
         {/* Main Chart */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.5 }}
@@ -111,10 +178,10 @@ export default function DashboardPage() {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={analytics?.weeklyProductivity || []} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.1)" />
-                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: 'currentColor', opacity: 0.5, fontSize: 12 }} dy={10} 
+                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: 'currentColor', opacity: 0.5, fontSize: 12 }} dy={10}
                        tickFormatter={(val) => new Date(val).toLocaleDateString(undefined, { weekday: 'short' })} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fill: 'currentColor', opacity: 0.5, fontSize: 12 }} />
-                <Tooltip 
+                <Tooltip
                   cursor={{ fill: 'rgba(255,255,255,0.05)' }}
                   contentStyle={{ backgroundColor: 'var(--popover)', borderColor: 'var(--border)', borderRadius: '12px' }}
                   labelFormatter={(val) => new Date(val).toLocaleDateString()}
@@ -126,7 +193,7 @@ export default function DashboardPage() {
         </motion.div>
 
         {/* Secondary Chart */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.6 }}
@@ -141,8 +208,8 @@ export default function DashboardPage() {
               <AreaChart data={analytics?.teamWorkload || []} margin={{ top: 0, right: 0, left: -30, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="var(--primary)" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <YAxis axisLine={false} tickLine={false} tick={{ fill: 'currentColor', opacity: 0.5, fontSize: 12 }} />
@@ -152,7 +219,6 @@ export default function DashboardPage() {
             </ResponsiveContainer>
           </div>
         </motion.div>
-
       </div>
     </div>
   );

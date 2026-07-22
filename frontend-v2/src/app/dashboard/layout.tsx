@@ -13,22 +13,65 @@ import {
   Settings, 
   LogOut,
   Menu,
-  X
+  X,
+  Users,
+  Briefcase,
+  CalendarDays,
+  MessageSquare,
+  Activity,
+  Link2,
+  Zap,
+  Clock,
+  FileSpreadsheet,
+  PieChart,
+  Network
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { CommandPalette } from '@/components/layout/CommandPalette';
 import { NotificationDropdown } from '@/components/layout/NotificationDropdown';
+import { KeyboardShortcutsModal } from '@/components/layout/KeyboardShortcutsModal';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { ProAIFab } from '@/components/ai/ProAIFab';
+import { ProAIDrawer } from '@/components/ai/ProAIDrawer';
+import { FloatingTimer } from '@/components/time/FloatingTimer';
 
-const navItems = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Projects', href: '/dashboard/projects', icon: KanbanSquare },
+import { useTranslation } from 'react-i18next';
+
+const NAV_KEYS = [
+  { key: 'dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { key: 'projects', href: '/dashboard/projects', icon: KanbanSquare },
+  { key: 'teams', href: '/dashboard/teams', icon: Users },
+  { key: 'calendar', href: '/dashboard/calendar', icon: CalendarDays },
+  { key: 'chat', href: '/dashboard/chat', icon: MessageSquare },
+  { key: 'activity', href: '/dashboard/activity', icon: Activity },
+  { key: 'integrations', href: '/dashboard/integrations', icon: Link2 },
+  { key: 'automations', href: '/dashboard/automations', icon: Zap },
+  { key: 'time', href: '/dashboard/time', icon: Clock },
+  { key: 'timesheets', href: '/dashboard/timesheets', icon: FileSpreadsheet },
+  { key: 'resources', href: '/dashboard/resources', icon: Network },
+  { key: 'reports', href: '/dashboard/reports', icon: PieChart },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, logout, checkAuth } = useAuthStore();
+  const { t } = useTranslation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCommandOpen, setIsCommandOpen] = useState(false);
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+
+  // Global keyboard shortcuts
+  useKeyboardShortcuts([
+    { key: '?', description: 'Show keyboard shortcuts', action: () => setIsShortcutsOpen(true) },
+    { key: 'd', description: 'Dashboard', action: () => {} }, // handled by sequence logic below
+  ]);
+
+  // Listen for custom event from Command Palette
+  useEffect(() => {
+    const handler = () => setIsShortcutsOpen(true);
+    window.addEventListener('open-shortcuts', handler);
+    return () => window.removeEventListener('open-shortcuts', handler);
+  }, []);
 
   useEffect(() => {
     checkAuth();
@@ -60,10 +103,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         <nav className="flex-1 px-4 py-6 space-y-1">
-          {navItems.map((item) => {
+          {NAV_KEYS.map((item) => {
             const isActive = pathname === item.href;
             return (
-              <Link key={item.name} href={item.href} className="relative block">
+              <Link key={item.key} href={item.href} className="relative block">
                 {isActive && (
                   <motion.div
                     layoutId="active-nav"
@@ -76,7 +119,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
                 }`}>
                   <item.icon className="w-5 h-5" />
-                  <span className="font-medium">{item.name}</span>
+                  <span className="font-medium">
+                    {['automations', 'time', 'timesheets', 'resources', 'reports'].includes(item.key) 
+                      ? item.key.charAt(0).toUpperCase() + item.key.slice(1) 
+                      : t(`sidebar.${item.key}`)}
+                  </span>
                 </div>
               </Link>
             );
@@ -85,8 +132,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         <div className="p-4 border-t border-border">
           <div className="flex items-center gap-3 px-4 py-3 mb-2 rounded-xl bg-white/5 border border-white/5">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center text-white font-bold uppercase shrink-0 shadow-inner">
-              {user?.name?.charAt(0) || 'U'}
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center text-white font-bold uppercase shrink-0 shadow-inner overflow-hidden">
+              {user?.avatarUrl ? (
+                <img src={user.avatarUrl.startsWith('http') ? user.avatarUrl : `http://localhost:5000${user.avatarUrl}`} alt={user.name || 'User'} className="w-full h-full object-cover" />
+              ) : (
+                user?.name?.charAt(0) || 'U'
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-foreground truncate">{user?.name || 'User'}</p>
@@ -99,7 +150,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
           >
             <LogOut className="w-5 h-5" />
-            <span className="font-medium">Logout</span>
+            <span className="font-medium">{t('sidebar.logout')}</span>
           </button>
         </div>
       </aside>
@@ -141,6 +192,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </div>
 
       <CommandPalette isOpen={isCommandOpen} onClose={() => setIsCommandOpen(false)} />
+      <KeyboardShortcutsModal isOpen={isShortcutsOpen} onClose={() => setIsShortcutsOpen(false)} />
+      
+      {/* ProAI Integration */}
+      <ProAIFab />
+      <ProAIDrawer />
+      
+      {/* Time Tracking Widget */}
+      <FloatingTimer />
     </div>
   );
 }
+

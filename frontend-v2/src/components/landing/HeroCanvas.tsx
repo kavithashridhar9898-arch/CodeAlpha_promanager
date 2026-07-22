@@ -90,14 +90,19 @@ function FloatingNodes() {
   );
 }
 
+import { useTheme } from 'next-themes';
+
 export function HeroCanvas() {
+  const { resolvedTheme } = useTheme();
+  const isLight = resolvedTheme === 'light';
+
   return (
     <div className="absolute inset-0 z-0 pointer-events-none">
       <Canvas camera={{ position: [0, 0, 8], fov: 45 }} dpr={[1, 2]}>
-        <color attach="background" args={['#050505']} />
+        <color attach="background" args={[isLight ? '#f8fafc' : '#050505']} />
         
         {/* Cinematic Lighting */}
-        <ambientLight intensity={0.5} />
+        <ambientLight intensity={isLight ? 0.8 : 0.5} />
         <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} intensity={2} color="#8b5cf6" />
         <spotLight position={[-10, -10, -10]} angle={0.15} penumbra={1} intensity={1} color="#3b82f6" />
         

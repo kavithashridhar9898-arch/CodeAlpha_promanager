@@ -4,10 +4,13 @@ import React, { useState } from 'react';
 import { Pencil, Trash2, Loader2, Check, X } from 'lucide-react';
 import type { Comment } from '@/hooks/useComments';
 import { useUpdateComment, useDeleteComment } from '@/hooks/useComments';
+import { useProject } from '@/hooks/useProjects';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface Props {
   comment: Comment;
   taskId: string;
+  projectId: string;
   currentUserId: string;
 }
 
@@ -23,15 +26,29 @@ function formatTime(iso: string) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-export function CommentCard({ comment, taskId, currentUserId }: Props) {
+export function CommentCard({ comment, taskId, projectId, currentUserId }: Props) {
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(comment.content);
+  const [mentionQuery, setMentionQuery] = useState<{ query: string; index: number } | null>(null);
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
+  const { data: project } = useProject(projectId);
   const { mutateAsync: updateComment, isPending: isSaving } = useUpdateComment(taskId);
   const { mutateAsync: deleteComment, isPending: isDeleting } = useDeleteComment(taskId);
 
   const isOwn = comment.author.id === currentUserId;
   const isEdited = comment.updatedAt !== comment.createdAt;
+
+  const extractMentionedUserIds = (content: string) => {
+    if (!project) return [];
+    const ids: string[] = [];
+    project.members.forEach((m) => {
+      if (content.includes(`@${m.user.name}`)) {
+        ids.push(m.user.id);
+      }
+    });
+    return ids;
+  };
 
   const handleSave = async () => {
     const trimmed = editContent.trim();
@@ -39,7 +56,8 @@ export function CommentCard({ comment, taskId, currentUserId }: Props) {
       setIsEditing(false);
       return;
     }
-    await updateComment({ id: comment.id, content: trimmed });
+    const mentionedUserIds = extractMentionedUserIds(trimmed);
+    await updateComment({ id: comment.id, content: trimmed, mentionedUserIds });
     setIsEditing(false);
   };
 
@@ -59,11 +77,33 @@ export function CommentCard({ comment, taskId, currentUserId }: Props) {
     }
   };
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setEditContent(e.target.value);
+    const cursor = e.target.selectionStart;
+    const textBeforeCursor = e.target.value.slice(0, cursor);
+    const match = textBeforeCursor.match(/@([a-zA-Z0-9_\s]*)$/);
+    if (match) {
+      setMentionQuery({ query: match[1], index: match.index! });
+    } else {
+      setMentionQuery(null);
+    }
+  };
+
+  const insertMention = (userName: string) => {
+    if (!mentionQuery) return;
+    const before = editContent.slice(0, mentionQuery.index);
+    const after = editContent.slice(textareaRef.current?.selectionStart || editContent.length);
+    const newContent = `${before}@${userName} ${after}`;
+    setEditContent(newContent);
+    setMentionQuery(null);
+    textareaRef.current?.focus();
+  };
+
   return (
     <div className="flex gap-3 group">
       {comment.author.avatarUrl ? (
         <img
-          src={comment.author.avatarUrl}
+          src={comment.author.avatarUrl.startsWith('http') ? comment.author.avatarUrl : `http://localhost:5000${comment.author.avatarUrl}`}
           alt={comment.author.name}
           className="w-8 h-8 rounded-full flex-shrink-0 border border-border"
         />
@@ -83,11 +123,45 @@ export function CommentCard({ comment, taskId, currentUserId }: Props) {
         </div>
 
         {isEditing ? (
-          <div className="space-y-2 mt-2">
+          <div className="space-y-2 mt-2 relative">
+            <AnimatePresence>
+              {mentionQuery && project && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 10 }}
+                  className="absolute bottom-full left-0 mb-2 w-64 bg-card border border-border rounded-xl shadow-xl overflow-hidden z-50 max-h-48 overflow-y-auto"
+                >
+                  {project.members
+                    .filter((m) => m.user.name.toLowerCase().includes(mentionQuery.query.toLowerCase()))
+                    .map((m) => (
+                      <button
+                        key={m.user.id}
+                        onClick={() => insertMention(m.user.name)}
+                        className="w-full flex items-center gap-3 px-4 py-2 hover:bg-secondary/50 text-left transition-colors"
+                      >
+                        {m.user.avatarUrl ? (
+                          <img src={m.user.avatarUrl.startsWith('http') ? m.user.avatarUrl : `http://localhost:5000${m.user.avatarUrl}`} alt={m.user.name} className="w-6 h-6 rounded-full" />
+                        ) : (
+                          <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">
+                            {m.user.name.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <span className="text-sm font-medium text-foreground">{m.user.name}</span>
+                      </button>
+                    ))}
+                  {project.members.filter((m) => m.user.name.toLowerCase().includes(mentionQuery.query.toLowerCase())).length === 0 && (
+                    <div className="px-4 py-3 text-xs text-muted-foreground text-center">No users found</div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
             <textarea
+              ref={textareaRef}
               value={editContent}
-              onChange={(e) => setEditContent(e.target.value)}
+              onChange={handleInputChange}
               onKeyDown={handleKeyDown}
+              onBlur={() => setTimeout(() => setMentionQuery(null), 200)}
               autoFocus
               rows={3}
               className="w-full px-3 py-2 rounded-xl bg-secondary/30 border border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary text-sm text-foreground resize-none transition-all"
