@@ -4,7 +4,7 @@ import { AppError } from '../utils/AppError';
 import path from 'path';
 import fs from 'fs';
 import multer from 'multer';
-import { ConversationType } from '../generated/prisma';
+import { ConversationType } from '@prisma/client';
 
 // ─── File Upload Configuration ────────────────────────────────────────────────
 const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'chat');

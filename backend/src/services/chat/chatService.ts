@@ -1,6 +1,6 @@
 import prisma from '../../config/database';
 import { AppError } from '../../utils/AppError';
-import { ConversationType, MessageType } from '../../generated/prisma';
+import { ConversationType, MessageType } from '@prisma/client';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Conversation helpers

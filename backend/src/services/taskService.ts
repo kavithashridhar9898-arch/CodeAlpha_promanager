@@ -1,7 +1,7 @@
 import prisma from '../config/database';
 import { AppError } from '../utils/AppError';
 import { notificationService } from './notificationService';
-import { NotificationType } from '../generated/prisma';
+import { NotificationType } from '@prisma/client';
 import { activityService } from './activityService';
 
 interface CreateTaskInput {

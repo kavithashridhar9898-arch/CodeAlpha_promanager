@@ -1,6 +1,6 @@
 import prisma from '../config/database';
 import { emitToUser } from '../socket';
-import { NotificationType } from '../generated/prisma';
+import { NotificationType } from '@prisma/client';
 import { activityService } from './activityService';
 
 export const notificationService = {
