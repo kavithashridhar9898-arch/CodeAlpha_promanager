@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import dynamic from 'next/dynamic';
 import { Task } from '@/components/board/KanbanBoard';
@@ -28,7 +28,7 @@ const GanttChart = dynamic(() => import('@/components/board/GanttChart').then(mo
   ssr: false 
 });
 
-export default function ProjectDetailPage() {
+function ProjectDetailContent() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -344,5 +344,17 @@ export default function ProjectDetailPage() {
       <DeleteConfirmationDialog isOpen={isDeleteOpen} onClose={() => setIsDeleteOpen(false)} projectId={project.id} projectName={project.name} />
       <InviteMemberDialog isOpen={isInviteOpen} onClose={() => setIsInviteOpen(false)} projectId={project.id} />
     </div>
+  );
+}
+
+export default function ProjectDetailPage() {
+  return (
+    <Suspense fallback={
+      <div className="h-full flex items-center justify-center">
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+      </div>
+    }>
+      <ProjectDetailContent />
+    </Suspense>
   );
 }

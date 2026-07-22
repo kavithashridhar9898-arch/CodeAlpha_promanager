@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { RefreshCw, CheckCircle2, XCircle } from 'lucide-react';
 import { api } from '@/lib/axios';
 
-export default function GitHubCallbackPage() {
+function GitHubCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const code = searchParams.get('code');
@@ -79,5 +79,17 @@ export default function GitHubCallbackPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function GitHubCallbackPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex flex-col items-center justify-center h-full bg-background/50">
+        <RefreshCw className="w-12 h-12 text-primary animate-spin" />
+      </div>
+    }>
+      <GitHubCallbackContent />
+    </Suspense>
   );
 }
