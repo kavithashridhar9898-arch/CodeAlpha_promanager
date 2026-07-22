@@ -20,6 +20,7 @@ const userSelect = {
   name: true,
   role: true,
   avatarUrl: true,
+  notificationSettings: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -129,6 +130,15 @@ export const authService = {
       throw new AppError('User not found.', 404);
     }
 
+    return user;
+  },
+
+  async updateMe(id: string, data: any) {
+    const user = await prisma.user.update({
+      where: { id },
+      data,
+      select: userSelect,
+    });
     return user;
   },
 };

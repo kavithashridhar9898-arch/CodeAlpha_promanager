@@ -42,5 +42,6 @@ authRouter.post('/login', loginLimiter, validate(loginSchema), authController.lo
 authRouter.post('/refresh', authController.refresh);
 authRouter.post('/logout', authController.logout);
 authRouter.get('/me', authenticate, authController.getMe);
+authRouter.patch('/me', authenticate, authController.updateMe);
 
 export { authRouter };

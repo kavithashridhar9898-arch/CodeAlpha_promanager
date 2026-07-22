@@ -90,7 +90,7 @@ type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, Record<strin
 export function initializeSocket(httpServer: HttpServer): Server<ClientToServerEvents, ServerToClientEvents> {
   const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
     cors: {
-      origin: process.env.CLIENT_URL ?? 'http://localhost:3000',
+      origin: ['http://localhost:3000', 'http://localhost:3001'],
       methods: ['GET', 'POST'],
       credentials: true,
     },

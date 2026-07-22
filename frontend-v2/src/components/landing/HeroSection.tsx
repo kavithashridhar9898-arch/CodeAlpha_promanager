@@ -4,6 +4,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { HeroCanvas } from './HeroCanvas';
 import { ArrowRight, Sparkles } from 'lucide-react';
+import Link from 'next/link';
 
 export function HeroSection() {
   return (
@@ -53,12 +54,12 @@ export function HeroSection() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
         >
-          <button className="h-12 px-8 rounded-full bg-primary text-primary-foreground font-medium flex items-center gap-2 hover:bg-primary/90 transition-all shadow-[0_0_40px_-10px_rgba(79,70,229,0.5)] hover:shadow-[0_0_60px_-15px_rgba(79,70,229,0.7)] hover:-translate-y-1">
+          <Link href="/login" className="h-12 px-8 rounded-full bg-primary text-primary-foreground font-medium flex items-center gap-2 hover:bg-primary/90 transition-all shadow-[0_0_40px_-10px_rgba(79,70,229,0.5)] hover:shadow-[0_0_60px_-15px_rgba(79,70,229,0.7)] hover:-translate-y-1">
             Get Started <ArrowRight className="w-4 h-4" />
-          </button>
-          <button className="h-12 px-8 rounded-full glass text-foreground font-medium hover:bg-white/5 transition-colors">
+          </Link>
+          <Link href="/login" className="h-12 px-8 rounded-full glass text-foreground flex items-center font-medium hover:bg-white/5 transition-colors">
             Book a Demo
-          </button>
+          </Link>
         </motion.div>
       </div>
     </section>
